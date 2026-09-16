@@ -1,0 +1,28 @@
+[project]
+name = "polymarket-us-mcp"
+version = "0.1.0"
+description = "Read-only MCP server for Polymarket US public market data with spread/fee analytics"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "mcp>=1.10",  # works on both 1.x (FastMCP) and 2.x (MCPServer)
+    "httpx>=0.27",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+polymarket-us-mcp = "polymarket_us_mcp.server:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["polymarket_us_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
