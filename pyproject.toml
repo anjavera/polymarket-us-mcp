@@ -5,6 +5,8 @@ description = "Read-only MCP server for Polymarket US public market data with sp
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "Anjavera" }]
+keywords = ["mcp", "polymarket", "prediction-markets", "model-context-protocol"]
 dependencies = [
     "mcp>=1.10",  # works on both 1.x (FastMCP) and 2.x (MCPServer)
     "httpx>=0.27",
@@ -26,3 +28,6 @@ packages = ["polymarket_us_mcp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[project.urls]
+Repository = "https://github.com/anjavera/polymarket-us-mcp"

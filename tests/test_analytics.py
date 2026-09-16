@@ -98,10 +98,9 @@ def test_num_and_days():
     assert an.days_until(None) is None
 
 
-from polymarket_us_mcp import analytics as an
-
 def mk(slug, bid, ask, q=""):
     return {"slug": slug, "bestBidQuote": bid, "bestAskQuote": ask, "question": q}
+
 
 def test_classify():
     c = an.classify_line_market("asc-mlb-nyy-min-2026-09-16-neg-2pt5")

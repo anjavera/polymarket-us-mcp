@@ -7,34 +7,65 @@ gateway (`https://gateway.polymarket.us`) and adds spread / fee / payoff analyti
 **No API key is loaded anywhere.** Every tool is a GET against public endpoints and is
 annotated `readOnlyHint=true`. The server cannot place, modify, or cancel orders.
 
-## Install
+> **Disclaimer.** This is an independent, unofficial project. It is not affiliated with, endorsed
+> by, or supported by Polymarket or QCEX. Nothing it outputs is financial, investment, or trading
+> advice. "Locked P&L", ROI, and mispricing figures are arithmetic on quoted prices at one moment;
+> quotes move, fills are not guaranteed, fee schedules change, and markets can settle in ways the
+> labels don't suggest. Check the market rules and your jurisdiction's eligibility before trading.
+> Use at your own risk.
 
-```powershell
-cd C:\Users\15309\PolyMarket\polymarket-us-mcp
-uv venv .venv
-uv pip install -p .venv\Scripts\python.exe -e ".[dev]"
+## Requirements
+
+- Python 3.10+
+- Network access to `https://gateway.polymarket.us`
+
+## Quick start (no clone)
+
+With [uv](https://docs.astral.sh/uv/) installed, run straight from GitHub:
+
+```bash
+uvx --from git+https://github.com/anjavera/polymarket-us-mcp polymarket-us-mcp
 ```
 
-## Configure Claude Desktop / Claude Code
+Add it to Claude Code:
 
-`claude_desktop_config.json` (Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
+```bash
+claude mcp add polymarket-us -- uvx --from git+https://github.com/anjavera/polymarket-us-mcp polymarket-us-mcp
+```
+
+Or to Claude Desktop's `claude_desktop_config.json`
+(macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`):
 
 ```json
 {
   "mcpServers": {
     "polymarket-us": {
-      "command": "C:\\Users\\15309\\PolyMarket\\polymarket-us-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "polymarket_us_mcp.server"],
-      "cwd": "C:\\Users\\15309\\PolyMarket\\polymarket-us-mcp"
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/anjavera/polymarket-us-mcp", "polymarket-us-mcp"]
     }
   }
 }
 ```
 
-Claude Code: `claude mcp add polymarket-us -- C:\Users\15309\PolyMarket\polymarket-us-mcp\.venv\Scripts\python.exe -m polymarket_us_mcp.server`
+## Install from source
+
+```bash
+git clone https://github.com/anjavera/polymarket-us-mcp
+cd polymarket-us-mcp
+python -m venv .venv
+# macOS/Linux: source .venv/bin/activate    Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+This puts a `polymarket-us-mcp` command on the venv's path. Point your MCP client at it using the
+absolute path, e.g. `/path/to/polymarket-us-mcp/.venv/bin/polymarket-us-mcp`
+(Windows: `C:\path\to\polymarket-us-mcp\.venv\Scripts\polymarket-us-mcp.exe`).
+
+## Configuration
 
 Optional env vars: `POLYMARKET_US_TAKER_FEE` (default 0.06; the market's own `feeCoefficient`
-is used when present), `POLYMARKET_US_MAKER_FEE` (default -0.0125), `POLYMARKET_US_TIMEOUT` (s).
+is used when present), `POLYMARKET_US_MAKER_FEE` (default -0.0125), `POLYMARKET_US_TIMEOUT` (seconds,
+default 20), `POLYMARKET_US_GATEWAY` (default `https://gateway.polymarket.us`).
 
 ## Tools
 
@@ -104,18 +135,22 @@ Reports size at the touch on both legs and the max locked P&L at that size. Also
 win by more than 1.5") describe opposite outcomes. `get_market`, `get_event`, `search` and
 `analyze_spread` now attach the same `label_warning` and the market's `long_side`.
 
-First found live on NYY @ MIN 2026-09-16: −2.5 bid 0.30 vs −1.5 ask 0.21 ≈ 6.7¢ locked per pair,
-but only ~3 contracts at the touch.
+*Historical example (September 2026, MLB NYY @ MIN):* the −2.5 line was bid 0.30 while the −1.5 line
+was offered at 0.21, about 6.7¢ locked per pair after fees, but only ~3 contracts were available at
+the touch. Violations like this are rare and short-lived.
 
-Settlement check on that game (Twins won 5–4 in 13): `pos-1pt5` settled **YES**, so on `pos` spread
-markets the question / long side (+N) is what YES means — the title and rules text are mirrored.
+On the label question, that game's `pos-1pt5` market settled **YES** when the Twins won by one, so
+for `pos` spread markets observed so far the question / long side (+N) is what YES means and the
+title and rules text were mirrored. The exchange could change this; verify on new market types.
 
-## Verify
+## Development
 
-```powershell
-.venv\Scripts\python.exe -m pytest -q          # unit tests for the math (offline)
-.venv\Scripts\python.exe tests\live_e2e.py     # spawns the server over stdio, calls every tool live
+```bash
+pytest -q                  # offline unit tests for the math
+python tests/live_e2e.py   # spawns the server over stdio and calls every tool against the live gateway
 ```
+
+The live check hits the real gateway and depends on what markets are open, so it isn't run in CI.
 
 ## Caveats
 
@@ -125,3 +160,9 @@ markets the question / long side (+N) is what YES means — the title and rules 
 - Scanner quotes come from the event snapshot; confirm with `pmus_analyze_spread` (live book) before acting.
 - `eventSlug` filtering on `/v1/markets` is unreliable on the gateway; use `pmus_get_event` instead.
 - Public gateway rate limit: 20 req/s per IP. `pmus_event_basket(refresh_quotes=True)` makes one BBO call per market.
+- The gateway is undocumented in places and may change without notice; field names and endpoints here
+  reflect its behavior as of September 2026.
+
+## License
+
+[MIT](LICENSE)
