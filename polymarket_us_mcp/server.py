@@ -10,6 +10,8 @@ No API key is loaded anywhere. Nothing here can trade.
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 from typing import Any, Literal
 
 try:  # mcp >= 2.0
@@ -19,11 +21,17 @@ except ImportError:  # mcp 1.x
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from polymarket_us_mcp import __version__
 from polymarket_us_mcp import analytics as an
 from polymarket_us_mcp.client import PolymarketUSError, client
 
-mcp = FastMCP(
-    "polymarket-us",
+# Per-request INFO logs (httpx "HTTP Request: ...", MCP "Processing request ...") are noise in client logs.
+LOG_LEVEL = os.environ.get("POLYMARKET_US_LOG_LEVEL", "WARNING").upper()
+logging.getLogger("httpx").setLevel(LOG_LEVEL)
+
+_server_kwargs: dict[str, Any] = dict(
+    name="polymarket-us",
+    log_level=LOG_LEVEL,
     instructions=(
         "Read-only access to Polymarket US (the CFTC-regulated exchange, not the global "
         "Polymarket). Prices are USD 0-1 = implied probability of YES. Markets are single "
@@ -35,6 +43,11 @@ mcp = FastMCP(
         "carries label_warning, its question and rules text disagree about what YES means."
     ),
 )
+try:
+    mcp = FastMCP(version=__version__, **_server_kwargs)
+except TypeError:  # mcp 1.x FastMCP has no version parameter
+    mcp = FastMCP(**_server_kwargs)
+    mcp._mcp_server.version = __version__
 
 RO = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
 

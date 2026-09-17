@@ -65,7 +65,8 @@ absolute path, e.g. `/path/to/polymarket-us-mcp/.venv/bin/polymarket-us-mcp`
 
 Optional env vars: `POLYMARKET_US_TAKER_FEE` (default 0.06; the market's own `feeCoefficient`
 is used when present), `POLYMARKET_US_MAKER_FEE` (default -0.0125), `POLYMARKET_US_TIMEOUT` (seconds,
-default 20), `POLYMARKET_US_GATEWAY` (default `https://gateway.polymarket.us`).
+default 20), `POLYMARKET_US_GATEWAY` (default `https://gateway.polymarket.us`),
+`POLYMARKET_US_LOG_LEVEL` (default `WARNING`; set `INFO` to log every gateway request to stderr).
 
 ## Tools
 
