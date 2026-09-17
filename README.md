@@ -9,7 +9,7 @@ annotated `readOnlyHint=true`. The server cannot place, modify, or cancel orders
 
 > **Disclaimer.** This is an independent, unofficial project. It is not affiliated with, endorsed
 > by, or supported by Polymarket or QCEX. Nothing it outputs is financial, investment, or trading
-> advice. "Locked P&L", ROI, and mispricing figures are arithmetic on quoted prices at one moment;
+> advice. ROI, breakeven, and pricing-consistency figures are arithmetic on quoted prices at one moment;
 > quotes move, fills are not guaranteed, fee schedules change, and markets can settle in ways the
 > labels don't suggest. Check the market rules and your jurisdiction's eligibility before trading.
 > Use at your own risk.
@@ -82,10 +82,10 @@ default 20), `POLYMARKET_US_GATEWAY` (default `https://gateway.polymarket.us`),
 | `pmus_get_settlement` | Settlement value for closed markets (1 = YES, 0 = NO, 0.5 = void) |
 | `pmus_get_price_history` | Long/short price history (gateway often returns empty) |
 | `pmus_list_series`, `pmus_list_sports`, `pmus_list_tags` | Reference data |
-| `pmus_analyze_spread` | **Spread insight for one market** (see below) |
-| `pmus_scan_extreme_markets` | **Find heavy favorites / long shots and price the bet within their spread** |
-| `pmus_event_basket` | Sum of asks/bids across an event's outcomes; locked P&L if mutually exclusive |
-| `pmus_line_ladder_check` | **Impossible pricing across spread/total lines** (e.g. -2.5 priced above -1.5) with locked P&L and touch size |
+| `pmus_analyze_spread` | **Spread, fee, and payoff breakdown for one market** (see below) |
+| `pmus_scan_extreme_markets` | **List high- and low-probability markets with fee-adjusted yield and spread width** |
+| `pmus_event_basket` | Sum of asks/bids across an event's outcomes and the resulting overround |
+| `pmus_line_ladder_check` | **Pricing-consistency check across spread/total lines** (e.g. whether −2.5 is quoted above −1.5), with depth at the touch |
 
 ### Price model used by the analytics
 
@@ -103,9 +103,9 @@ For a slug it returns bid/ask/mid, spread in ticks and % of mid, a liquidity cla
   **breakeven probability**, ROI if it wins, ROI annualized to the end date, EV at mid.
 - **maker_join_best** — same economics if you rest at the touch and earn the rebate.
 - **inside_spread_ladder** — rungs 1..n ticks inside the spread: what a resting buy / resting short at
-  that price costs or receives after rebate, and its EV at mid. This is the "other bets inside the
-  spread": when a market is 0.90 / 0.96, crossing at 0.96 gives ~3.6% to settlement, but resting at
-  0.91–0.93 (if filled) gives 7–9% and collects the rebate.
+  that price costs or receives after rebate, and its EV at mid. For example, in a 0.90 / 0.96 market,
+  crossing at 0.96 yields ~3.6% if YES settles, while a resting buy at 0.91–0.93 yields 7–9% *if it
+  fills*, which is not guaranteed.
 - **liquidity** — depth within a band of the touch on each side and an imbalance note.
 - **execution_sim** (with `size`) — walk the book, average fill price, slippage, fully-filled flag.
 
@@ -114,35 +114,32 @@ For a slug it returns bid/ask/mid, spread in ticks and % of mid, a liquidity cla
 Pulls active events by volume, flattens their markets, and keeps those with mid ≥ `high_threshold`
 (default 0.90) or ≤ `low_threshold` (default 0.10). For each: the with-the-market trade (buy YES on
 favorites, short on long shots), taker breakeven probability, ROI and annualized ROI, spread width,
-the resting price one tick inside the spread and the ROI pickup vs crossing, plus a contrarian note
-giving the probability you'd need to believe to fade it. Filter by category / tag / days to end.
+the resting price one tick inside the spread and the yield difference vs crossing, plus the breakeven
+probability for the opposite side. Filter by category / tag / days to end. It reports yield, not
+edge: a 95% market still settles NO about 1 time in 20.
 
 ### `pmus_event_basket`
 
 For multi-outcome events (e.g. Senate control: Dem / Rep) sums asks (incl. fees) and bids (after fees)
-across the markets. If outcomes are mutually exclusive and exhaustive, `1 − Σask` and `Σbid − 1` are
-locked P&L. Almost always negative (that's the overround), but a positive number is a genuine
-cross-market mispricing. Exclusivity is *not* checked automatically — read the rules.
+across the markets and reports the overround. The `*_locked_pnl_if_exclusive` fields show
+`1 − Σask` and `Σbid − 1`, which are only meaningful if the outcomes are mutually exclusive and
+exhaustive. Exclusivity is *not* checked automatically, so read the rules. In practice these values are
+almost always negative, reflecting the normal overround.
 
 ### `pmus_line_ladder_check`
 
 Groups an event's spread and total markets into ladders by slug (`asc-…-neg-N` favorite −N,
 `asc-…-pos-N` underdog +N, `tsc-…-N` game over N, `tsc-…-tt-TEAM-N` team over N; `f5-` first-5
-lines are their own ladder) and checks they are monotonic. A harder line can't be more likely than an
-easier one. When the harder line's **bid** is above the easier line's **ask**, buying the easier line and
-shorting the harder one locks in `bid − ask − fees` per pair (plus $1 if only the easier line hits).
-Reports size at the touch on both legs and the max locked P&L at that size. Also lists
-`label_conflicts`: spread markets whose question ("Yankees cover +1.5") and title/rules text ("Twins
-win by more than 1.5") describe opposite outcomes. `get_market`, `get_event`, `search` and
-`analyze_spread` now attach the same `label_warning` and the market's `long_side`.
+lines are their own ladder) and checks that prices are consistent with the lines: a harder line
+should not be priced as more likely than an easier one. When a harder line's bid is above an easier
+line's ask, the tool reports it under `hard_violations`, with the price gap net of fees
+(`locked_pnl_per_pair`), the size available at the touch, and the capital involved. Gaps like this
+are uncommon, usually small in size, and tend to close quickly.
 
-*Historical example (September 2026, MLB NYY @ MIN):* the −2.5 line was bid 0.30 while the −1.5 line
-was offered at 0.21, about 6.7¢ locked per pair after fees, but only ~3 contracts were available at
-the touch. Violations like this are rare and short-lived.
-
-On the label question, that game's `pos-1pt5` market settled **YES** when the Twins won by one, so
-for `pos` spread markets observed so far the question / long side (+N) is what YES means and the
-title and rules text were mirrored. The exchange could change this; verify on new market types.
+The check also returns `label_warning` / `label_conflicts` when a spread market's question text and
+its title or rules text parse to different outcomes, so you can read the full rules before relying
+on either. `get_market`, `get_event`, `search`, and `analyze_spread` include the same warning plus
+the market's `long_side`.
 
 ## Development
 
@@ -157,7 +154,6 @@ The live check hits the real gateway and depends on what markets are open, so it
 
 - Annualized ROI assumes settlement at the market `endDate`, which is the exchange deadline; many
   markets resolve earlier (higher real annualized) or the deadline is far past the event.
-- A 95% market still loses about 1 in 20. The scanner shows *yield*, not edge.
 - Scanner quotes come from the event snapshot; confirm with `pmus_analyze_spread` (live book) before acting.
 - `eventSlug` filtering on `/v1/markets` is unreliable on the gateway; use `pmus_get_event` instead.
 - Public gateway rate limit: 20 req/s per IP. `pmus_event_basket(refresh_quotes=True)` makes one BBO call per market.
